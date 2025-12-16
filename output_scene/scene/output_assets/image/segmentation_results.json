@@ -1,0 +1,208 @@
+{
+    "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/comfy_image/scene_image.png",
+    "object_names": [
+        "table_0",
+        "toolbox_1",
+        "toy car_2",
+        "##fying glass_3",
+        "bottle_4",
+        "bottle_5",
+        "bottle_6",
+        "toy car_7",
+        "toy car_8",
+        "screwdriver_9"
+    ],
+    "objects": [
+        {
+            "class_name": "table",
+            "confidence": 0.8290977478027344,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/table_0.png",
+            "bbox": [
+                238.9774169921875,
+                505.7193603515625,
+                1571.218994140625,
+                1507.7113037109375
+            ],
+            "size": {
+                "width": 1333,
+                "height": 1002
+            },
+            "is_occluded": true,
+            "occluded_by": [
+                "toy car",
+                "screwdriver",
+                "magnifying glass",
+                "toolbox",
+                "bottle"
+            ],
+            "occlusion_description": "The two red toy cars and one blue toy car occlude the central and right areas of the table. The screwdriver occludes a small area on the left side of the table. The magnifying glass occludes a spot below the toy cars. The toolbox occludes an area on the upper left part of the table. The bottles occlude the upper right area of the table.",
+            "inpainting_image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/image_table_0.png",
+            "inpainting_mask_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/mask_table_0.png",
+            "occlusion_mask_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/occlusion_mask_table_0.png",
+            "box_image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/box_table_0.png",
+            "inpainted_image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/comfy_image/inpainted_table_0.png",
+            "redraw_image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/comfy_image/redraw_table_0.png",
+            "final_segmented_image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/final_table_0.png"
+        },
+        {
+            "class_name": "toolbox",
+            "confidence": 0.7926389575004578,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/toolbox_1.png",
+            "bbox": [
+                301.07763671875,
+                469.24493408203125,
+                577.0722045898438,
+                758.1848754882812
+            ],
+            "size": {
+                "width": 276,
+                "height": 289
+            },
+            "is_occluded": false
+        },
+        {
+            "class_name": "toy car",
+            "confidence": 0.5990498661994934,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/toy car_2.png",
+            "bbox": [
+                603.6010131835938,
+                778.30224609375,
+                846.2405395507812,
+                933.1903076171875
+            ],
+            "size": {
+                "width": 243,
+                "height": 155
+            },
+            "is_occluded": false
+        },
+        {
+            "class_name": "##fying glass",
+            "confidence": 0.5526928901672363,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/##fying glass_3.png",
+            "bbox": [
+                977.8511962890625,
+                767.1397705078125,
+                1172.2344970703125,
+                891.643798828125
+            ],
+            "size": {
+                "width": 195,
+                "height": 124
+            },
+            "is_occluded": false
+        },
+        {
+            "class_name": "bottle",
+            "confidence": 0.6406374573707581,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/bottle_4.png",
+            "bbox": [
+                1291.9603271484375,
+                512.8322143554688,
+                1342.6256103515625,
+                619.6837768554688
+            ],
+            "size": {
+                "width": 51,
+                "height": 107
+            },
+            "is_occluded": false
+        },
+        {
+            "class_name": "bottle",
+            "confidence": 0.5770595073699951,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/bottle_5.png",
+            "bbox": [
+                1164.132080078125,
+                524.0980834960938,
+                1212.638427734375,
+                629.6182250976562
+            ],
+            "size": {
+                "width": 48,
+                "height": 105
+            },
+            "is_occluded": false
+        },
+        {
+            "class_name": "bottle",
+            "confidence": 0.5383786559104919,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/bottle_6.png",
+            "bbox": [
+                1192.546630859375,
+                486.16448974609375,
+                1234.111328125,
+                592.0540161132812
+            ],
+            "size": {
+                "width": 42,
+                "height": 106
+            },
+            "is_occluded": false
+        },
+        {
+            "class_name": "toy car",
+            "confidence": 0.5118911862373352,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/toy car_7.png",
+            "bbox": [
+                1175.9835205078125,
+                666.1705932617188,
+                1436.4986572265625,
+                827.6189575195312
+            ],
+            "size": {
+                "width": 261,
+                "height": 161
+            },
+            "is_occluded": false
+        },
+        {
+            "class_name": "toy car",
+            "confidence": 0.5014922022819519,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/toy car_8.png",
+            "bbox": [
+                789.3585205078125,
+                566.9091186523438,
+                1035.406982421875,
+                722.6696166992188
+            ],
+            "size": {
+                "width": 246,
+                "height": 156
+            },
+            "is_occluded": false
+        },
+        {
+            "class_name": "screwdriver",
+            "confidence": 0.5701494812965393,
+            "image_path": "/home/wlj/instanceSegmentation/TabletopGen/output_scene/scene_9/output_assets/image/screwdriver_9.png",
+            "bbox": [
+                357.6388854980469,
+                840.0145874023438,
+                514.6239013671875,
+                934.7916870117188
+            ],
+            "size": {
+                "width": 157,
+                "height": 94
+            },
+            "is_occluded": false
+        }
+    ],
+    "img_width": 1808,
+    "img_height": 1808,
+    "occlusion_info": [
+        {
+            "occluded_object": "table",
+            "occluded_by": [
+                "toy car",
+                "screwdriver",
+                "magnifying glass",
+                "toolbox",
+                "bottle"
+            ],
+            "description": "The two red toy cars and one blue toy car occlude the central and right areas of the table. The screwdriver occludes a small area on the left side of the table. The magnifying glass occludes a spot below the toy cars. The toolbox occludes an area on the upper left part of the table. The bottles occlude the upper right area of the table."
+        }
+    ],
+    "main_object": "table"
+}
