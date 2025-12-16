@@ -1,7 +1,18 @@
 """
 Isaac Sim 3D Layout Final Module
-Based on data from layout_pose.json and layout_rotation.json,
-place objects from sized_mesh into Isaac Sim according to the final calculated position, size, and rotation angle.
+对应论文阶段 (4) 3D Scene Assembly (Part 2: Simulation)
+功能：将处理好的 3D 资产导入 NVIDIA Isaac Sim，应用物理属性，构建可交互的仿真场景。
+
+主要步骤原理：
+1. 资产转换 (Asset Conversion): 将 GLB 格式转换为 Isaac Sim 原生支持的 USD 格式。
+2. 场景加载: 加载背景房间 (Room Environment)。
+3. 物体放置 (Object Placement):
+   - 尺度对齐 (Scale): 对比当前 USD 模型的 Bounding Box 和 VLM 估算的物理尺寸 (cm)，计算缩放比例。
+   - 位置映射 (Position): 将计算出的 cm 级坐标转换为 Isaac Sim 的 m 级坐标，并处理坐标系差异（如 Z 轴偏移）。
+   - 旋转应用 (Rotation): 应用 DRO 阶段计算出的精确旋转角度。
+4. 物理属性 (Physics):
+   - 碰撞体 (Collision): 为物体添加凸包 (Convex Hull) 或 盒子 (Box) 碰撞体，确保仿真中的物理交互。
+   - 刚体 (Rigid Body): 启用重力、摩擦力等物理模拟属性。
 """
 
 import os
@@ -14,6 +25,7 @@ import asyncio
 import shutil
 from isaacsim import SimulationApp
 
+# 启动 Isaac Sim 应用实例
 simulation_app = SimulationApp({"headless": False})
 
 import omni
@@ -26,7 +38,7 @@ from pxr import Usd, UsdGeom, Gf, UsdPhysics, UsdLux
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
 
-# Enable asset converter extension
+# 启用资产转换扩展 (用于 GLB -> USD) 适配Isaac Sim
 enable_extension("omni.kit.asset_converter")
 
 
@@ -52,7 +64,7 @@ async def convert(in_file, out_file, load_materials=False):
     return success
 
 def asset_convert(input_file, output_file):
-    """Convert asset file"""
+    """转换资产格式 (GLB -> USD)"""
     print(f"Converting {input_file} to {output_file}...")
     status = asyncio.get_event_loop().run_until_complete(
         convert(input_file, output_file, load_materials=True)
@@ -78,7 +90,7 @@ def check_asset_exists(asset_path):
     return True
 
 def set_angles(prim_path, euler_angles):
-    """Set object Euler angle rotation"""
+    """设置物体欧拉角旋转 (应用 DRO 优化后的角度)"""
     obj = XFormPrim(prim_path)
     current_position, _ = obj.get_world_pose()
     euler_angles_rad = tuple(math.radians(angle) for angle in euler_angles)
@@ -86,20 +98,32 @@ def set_angles(prim_path, euler_angles):
     obj.set_world_pose(position=current_position, orientation=new_orientation)
 
 def set_position(prim_path, position):
-    """Set object position"""
+    """设置物体位置 (应用 TSA 对齐后的坐标)"""
     obj = XFormPrim(prim_path)
     _, current_orientation = obj.get_world_pose()
     new_position = Gf.Vec3d(position[0], position[1], position[2])
     obj.set_world_pose(position=new_position, orientation=current_orientation)
 
+# Jack Wang here for physical property
 def create_rigid_collision(stage, prim_path):
-    """Add rigid body collision properties to object"""
+    """
+    为物体添加刚体和碰撞属性 (Physics & Collision)
+    对应功能：调用 Isaac Sim API 为 USD Prim 添加物理属性。
+    1. UsdPhysics.RigidBodyAPI: 赋予物体质量、惯性，使其受重力影响。
+    2. UsdPhysics.CollisionAPI: 赋予物体碰撞属性，使其能与其他物体交互。
+    """
     xform_parent = UsdGeom.Xform.Define(stage, prim_path)
+    
+    # 1. 应用刚体 API (Rigid Body)
+    # 使物体成为刚体，参与物理模拟（重力、动量等）
     UsdPhysics.RigidBodyAPI.Apply(xform_parent.GetPrim())
+    
+    # 2. 应用碰撞 API (Collision)
+    # 使物体具有碰撞体积，能与其他物体产生物理接触
     UsdPhysics.CollisionAPI.Apply(xform_parent.GetPrim())
 
 def calculate_bounding_box(stage, prim_path):
-    """Calculate object bounding box, return size and center point"""
+    """计算物体在 USD 中的 Bounding Box，返回尺寸和中心点"""
     prim = stage.GetPrimAtPath(prim_path)
     if not prim or not prim.IsValid():
         print(f"Error: Invalid prim at path {prim_path}")
@@ -127,7 +151,7 @@ def calculate_bounding_box(stage, prim_path):
         return None, None
 
 def set_object_scale(stage, prim_path, scale_factors):
-    """Set object scale"""
+    """设置物体缩放 (Scale)"""
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         print(f"Error: Invalid prim at path {prim_path}")
@@ -153,7 +177,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 def _physics_token(name, default=None):
     return getattr(UsdPhysics.Tokens, name, default)
 
-# Dynamically build "best available" mapping
+# 动态构建最佳可用碰撞近似映射 (Fallback 策略)
 APPROX_CANDIDATES = {
     "box":               _physics_token("boundingCube"),
     "sphere":            _physics_token("boundingSphere"),
@@ -171,7 +195,14 @@ def print_supported_collision_approximations():
         print(f"  - {k:>13} -> {v}")
 
 def set_collision_approx_for_submeshes(stage, root_prim_path, mode="box"):
-    """Apply collision approximation to all Meshes under the asset (default bounding box)"""
+    """
+    为子网格应用碰撞近似 (Collision Approximation)。
+    默认使用 Box，若不支持则降级 (Fallback)。
+    对应功能：设置碰撞体的几何近似类型。
+    - boundingCube (box): 简单的立方体包围盒，计算最快。
+    - convexHull (hull): 凸包，比 Box 更精确，贴合物体外形。
+    - convexDecomposition (vhacd): 凸分解，处理凹陷物体最精确，但计算量大。
+    """
     if mode not in APPROX_MAP:
         # Fallback priority: box -> hull -> vhacd -> sphere -> mesh_simplify -> none
         for fallback in ["box", "hull", "vhacd", "sphere", "mesh_simplify", "none"]:
@@ -191,6 +222,7 @@ def set_collision_approx_for_submeshes(stage, root_prim_path, mode="box"):
         if prim.IsA(UsdGeom.Mesh):
             coll = UsdPhysics.CollisionAPI.Apply(prim)
             # set physics:approximation
+            # 设置具体的碰撞近似类型 (如 "boundingCube" 或 "convexHull")
             coll.GetPhysicsApproximationAttr().Set(approx_token)
             count += 1
     print(f"[collider] set '{mode}' on {count} mesh prim(s) under {root_prim_path}")
@@ -198,7 +230,15 @@ def set_collision_approx_for_submeshes(stage, root_prim_path, mode="box"):
 
 
 def add_object_to_scene(sized_mesh_path, usd_cache_dir, stage, object_name, object_data, rotation_angle ,is_main_object):
-    """Add object to the scene"""
+    """
+    核心函数：将单个物体添加到场景中
+    步骤：
+    1. 转换/加载 USD 资产。
+    2. 计算并应用缩放 (Scale)：根据 VLM 预测尺寸 (cm) 和当前模型尺寸 (Isaac units) 的比例。
+    3. 设置位置 (Position)：从 cm 转换为 m，并调整坐标轴方向。
+    4. 设置旋转 (Rotation)：应用 Z 轴旋转。
+    5. 添加物理碰撞属性 (Collision)。
+    """
     # Clean object name, remove special characters
     import re
     clean_object_name = re.sub(r'[^\w\s-]', '', object_name)
@@ -234,17 +274,17 @@ def add_object_to_scene(sized_mesh_path, usd_cache_dir, stage, object_name, obje
     print(f"Adding asset: {object_name}")
     
     try:
-        # Step 1: Add USD file to scene
+        # Step 1: Add USD file to scene (引用 USD 文件)
         add_reference_to_stage(usd_path=usd_path, prim_path=prim_path)
         print(f"Added asset '{object_name}' to scene")
         
         import omni.kit.app
         omni.kit.app.get_app().update()
         
-        # Step 2: Get current size and calculate required scale
+        # Step 2: Get current size and calculate required scale (计算缩放)
         actual_size, actual_center = calculate_bounding_box(stage, prim_path)
         if actual_size:
-            expected_size_cm = object_data["size"]  # Expected size in cm
+            expected_size_cm = object_data["size"]  # Expected size in cm (来自 VLM 分析)
             expected_size_m = [s / 100.0 for s in expected_size_cm]  # Convert to meters
             
             print(f"Expected size (cm): {expected_size_cm}")
@@ -270,13 +310,14 @@ def add_object_to_scene(sized_mesh_path, usd_cache_dir, stage, object_name, obje
                 if final_size:
                     print(f"Final size (m): {[round(s, 4) for s in final_size]}")
         
-        # Step 3: Set position (position in layout_pose is already final, convert to meters)
+        # Step 3: Set position (位置映射)
+        # position in layout_pose is already final, convert to meters
         pose_position = object_data["pose"]  # [x, y, z] in cm
         
         # Convert to Isaac Sim coordinate system: invert x-axis, cm to m, and adjust height to fit room floor
         room_floor_offset = -0.7696  # Room floor height offset
         adjusted_position = [
-            pose_position[0] / 100.0,  # invert x-axis, cm to m
+            pose_position[0] / 100.0,  # invert x-axis, cm to m (根据实际坐标系调整)
             pose_position[1] / 100.0,   # y-axis, cm to m
             pose_position[2] / 100.0 + room_floor_offset    # z-axis, cm to m and subtract floor offset
         ]
@@ -291,14 +332,14 @@ def add_object_to_scene(sized_mesh_path, usd_cache_dir, stage, object_name, obje
         final_position, _ = obj.get_world_pose()
         print(f"Final position: {[round(p, 4) for p in final_position]}")
         
-        # Step 4: Set rotation angle
+        # Step 4: Set rotation angle (应用旋转)
         if rotation_angle != 0:
             actual_rotation_angle = rotation_angle
             rotation = [0, 0, actual_rotation_angle]
             set_angles(prim_path, rotation)
             print(f"Applied rotation: {actual_rotation_angle}° around Z-axis (original: {rotation_angle}°)")
         
-        # Step 5: Add physical collision
+        # Step 5: Add physical collision (添加碰撞体)
         if is_main_object:
             print_supported_collision_approximations()
 
@@ -316,7 +357,7 @@ def add_object_to_scene(sized_mesh_path, usd_cache_dir, stage, object_name, obje
         return False
 
 def load_layout_data(layout_pose_path, layout_rotation_path):
-    """Load layout data"""
+    """Load layout data (读取布局和旋转 JSON 数据)"""
     try:
         # Load pose data
         with open(layout_pose_path, 'r', encoding='utf-8') as f:
@@ -353,7 +394,7 @@ def clear_usd_cache(usd_cache_dir):
     print(f"Created fresh USD cache directory: {usd_cache_dir}")
 
 def load_room_environment(stage, pipeline_dir):
-    """Load room environment USD file"""
+    """Load room environment USD file (加载背景房间)"""
     room_usd_path = os.path.join(pipeline_dir, "background_room/room.usd")
     
     if not os.path.exists(room_usd_path):
@@ -469,7 +510,7 @@ def isaac_main(output_assets_dir):
         
         print(f"World stage units: {get_stage_units()} meters per unit")
         
-        # Add objects in calculation order
+        # Add objects in calculation order (按计算顺序添加物体)
         calculation_order = pose_data["metadata"]["calculation_order"]
         objects_data = pose_data["objects"]
         main_object = pose_data["main_object"]
@@ -511,7 +552,7 @@ def isaac_main(output_assets_dir):
         print(f"\nSuccessfully added {successful_assets}/{len(calculation_order)} assets")
         print("All assets positioned on room floor (Z offset: -0.7696m)")
         
-        # Add lights
+        # Add lights (添加灯光)
         # Dome light
         dome_light = UsdLux.DomeLight.Define(stage, "/World/DomeLight")
         dome_light.CreateIntensityAttr(1000)

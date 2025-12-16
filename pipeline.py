@@ -131,8 +131,10 @@ def setup_scene_directories(scene_id, input_image_path):
 def step1_get_asset_image(scene_dir):
     """
     Step 1: Generate images of individual objects
+    对应论文阶段 (1) Instance Extraction: Identification - Segmentation
+    功能：利用 Grounded-SAM-2 识别并分割图像中的物体，生成独立的物体遮罩mask和图像。
     """
-    logger.info("=== Step 1: Generate images of individual objects ===")
+    logger.info("=== Step 1: Generate images of individual objects (Instance Extraction) ===")
     
     try:
         from modules.get_asset_image import get_asset_image_main
@@ -156,8 +158,14 @@ def step1_get_asset_image(scene_dir):
 def step2_inpaint_occlusion(scene_dir):
     """
     Step 2: Repair occluded objects
+    对应论文阶段 (1) Instance Extraction: Completion
+    功能：利用 Inpainting 技术补全被遮挡物体的缺失部分。
+    具体方法：
+    1. Inpainting: 调用 Doubao SeeDream 4.0 模型，根据遮挡关系提示词 ("remove all things on...") 移除遮挡物。
+    2. Redraw: 再次调用 SeeDream 4.0 对补全后的物体进行重绘优化，使其更真实清晰。
+    3. Segmentation: 使用 BiRefNet 对重绘后的图像进行二次分割，提取干净的 2D 实例。
     """
-    logger.info("=== Step 2: Repair occluded objects ===")
+    logger.info("=== Step 2: Repair occluded objects (Instance Completion) ===")
     
     try:
         from modules.inpaint_occlusion import run_inpaint_pipeline
@@ -195,8 +203,10 @@ def step2_inpaint_occlusion(scene_dir):
 def step3_generate_3d_models_api(scene_dir):
     """
     Step 3: Redraw and generate 3D models
+    对应论文阶段 (2) Canonical 3D Mesh Generation: Image-to-3D
+    功能：调用 3D 生成模型（如 Hunyuan3D/SeeDream）将 2D 实例图转换为 3D 网格模型。
     """
-    logger.info("=== Step 3: Redraw and generate 3D models ===")
+    logger.info("=== Step 3: Redraw and generate 3D models (3D Generation) ===")
     
     try:
         from modules.redraw_and_3dgen_with_api_multi import redraw_and_3dgen_api
@@ -250,8 +260,14 @@ def step3_generate_3d_models_api(scene_dir):
 def step4_coordinate_canonicalization(scene_dir):
     """
     Step 4: Coordinate canonicalization
+    对应论文阶段 (2) Canonical 3D Mesh Generation: Canonical Meshes
+    功能：
+    4.1 初步旋转：将生成的模型对齐到标准坐标系。
+    4.2 VLM 分析尺寸：利用视觉大模型分析物体的物理尺寸。
+    4.3 VLM 坐标规范化：纠正生成模型的朝向（如确保正立）。
+    4.4 XY 对齐：进一步微调水平面上的对齐。
     """
-    logger.info("=== Step 4: Coordinate canonicalization ===")
+    logger.info("=== Step 4: Coordinate canonicalization (Canonicalization) ===")
     
     try:
         from modules.rotate_glb import process_glb_to_isaac_axis
@@ -312,8 +328,13 @@ def step4_coordinate_canonicalization(scene_dir):
 def step5_rotation_estimation(scene_dir):
     """
     Step 5: Rotation estimation
+    对应论文阶段 (3) Pose and Scale Alignment: DRO (Differentiable Rotation Optimizer)
+    功能：
+    5.1 分析视角：估计相机的俯仰角和方位角。
+    5.2 可微分旋转优化：在一个独立的渲染环境中，通过差异化渲染优化每个实例的旋转角度，
+        使其投影与原图中的物体对齐，解决单视角下的旋转歧义。
     """
-    logger.info("=== Step 5: Rotation estimation ===")
+    logger.info("=== Step 5: Rotation estimation (DRO) ===")
     
     try:
         from modules.vlm_scene_view_angle import scene_angle_and_sized_mesh
@@ -382,8 +403,15 @@ def step5_rotation_estimation(scene_dir):
 def step6_position_estimation(scene_dir):
     """
     Step 6: Position estimation
+    对应论文阶段 (3) Pose and Scale Alignment: TSA (Top-view Spatial Alignment)
+    功能：
+    6.1 生成顶视图：利用 GenAI 生成场景的顶视图，解决深度感知问题。
+    6.2 顶视图分析：提取顶视图中的物体布局（Bounding Box）。
+    6.3 计算 Pose：结合顶视图布局和物理尺寸，推断物体的 3D 平移位置 (Translation)。
+    6.4 放置顺序 (Contact Analysis): 调用 VLM 分析物体间的接触/堆叠关系 (on_top_of)，确定放置顺序。
+    6.5 最终 Pose 计算：结合堆叠关系计算 Z 轴高度，综合得到最终布局。
     """
-    logger.info("=== Step 6: Position estimation ===")
+    logger.info("=== Step 6: Position estimation (TSA) ===")
     
     try:
         from modules.vlm_generate_topview_scene_with_check import generate_topview_scene
@@ -454,8 +482,13 @@ def step6_position_estimation(scene_dir):
 def step7_glb_scene(scene_dir, scene_id):
     """
     Step 7: Assembly scene GLB
+    对应论文阶段 (4) 3D Scene Assembly (Part 1)
+    功能：
+    7.1 对齐中心：将所有模型几何中心对齐。
+    7.2 组装 GLB：应用计算好的 旋转(Rotation)、平移(Translation) 和 尺度(Scale)，
+        将所有独立物体组装成一个完整的 GLB 场景文件。
     """
-    logger.info("=== Step 7: Assembly scene GLB ===")
+    logger.info("=== Step 7: Assembly scene GLB (Assembly) ===")
     
     try:
         from modules.align_axis_centered import process_all_models

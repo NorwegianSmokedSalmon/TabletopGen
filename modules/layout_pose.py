@@ -31,7 +31,15 @@ def find_main_object(placement_data):
     return None
 
 def calculate_object_z_position(obj_name, placement_data, vlm_pose_data, size_data, calculated_poses):
-    """Recursively calculate object Z position"""
+    """
+    Recursively calculate object Z position
+    对应功能：根据 VLM 推断的接触关系计算物体的物理 Z 轴高度。
+    原理：
+    1. 读取 'on_top_of' 关系。
+    2. 递归查找底部支撑物体 (Base Object) 的顶部 Z 坐标。
+    3. 当前物体 Z = Base物体顶部 Z + 当前物体高度的一半。
+    这确保了物体在 3D 空间中正确堆叠，互不穿插。
+    """
     obj_info = placement_data[obj_name]
     on_top_of = obj_info.get("on_top_of")
     

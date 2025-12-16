@@ -63,6 +63,8 @@ def update_segmentation_results(segmentation_data, object_id, updates, json_path
 def seedream_object_api(image_path1, prompt, output_path, ark_api_key=None):
     """
     Generate object image using Seedream 4.0
+    对应功能：调用豆包 SeeDream 4.0 API 进行局部重绘 (Inpainting)。
+    实现方式：将本地图像转为 Base64，通过 Ark SDK 发送请求，模型为 "doubao-seedream-4-0-250828"。
     """
     # Initialize Ark client
     client = Ark(

@@ -47,6 +47,8 @@ def image_to_base64(image_path):
 def generate_object_image(image_path1, image_path2, object_name, output_path, is_main_obj=False, is_multi=False, ark_api_key=None):
     """
     Generate object images using Seedream 4.0
+    对应功能：调用豆包 SeeDream 4.0 API 进行图像生成/重绘。
+    实现方式：使用 volcenginesdkarkruntime 库，模型为 "doubao-seedream-4-0-250828"。
     """
 
     client = Ark(

@@ -1,5 +1,7 @@
 """
 Flexible GLB scene assembly.
+对应论文阶段 (4) 3D Scene Assembly (Part 1: GLB Export)
+功能：将所有经过旋转、平移、缩放处理后的独立 3D 资产组装成一个单一的 .glb 场景文件。
 """
 
 import os

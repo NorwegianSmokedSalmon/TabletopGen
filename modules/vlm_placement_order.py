@@ -22,7 +22,14 @@ def get_object_names(segmentation_results_path):
         return []
 
 def analyze_placement_order(scene_image_path, annotated_image_path, object_names, api_key, proxy_url, base_url):
-    """Analyze object placement order using GPT"""
+    """
+    Analyze object placement order using GPT
+    对应功能：利用 VLM (如 GPT-4/5) 推断场景中物体的物理接触和堆叠关系。
+    原理：
+    1. 输入场景原图和带有 ID 标注的图像。
+    2. Prompt 引导模型识别 "on_top_of" (谁在谁上面) 的关系。
+    3. 输出 JSON 格式的层级关系，用于后续 Z 轴高度计算。
+    """
     try:
 
         prompt = f"""You are a layout designer. Given a list of objects, please output the placement order of each object in the image. The main object in the scene (such as a table) is ranked 1. Objects placed on top of it are determined by their stacking position. Generally, larger objects placed on top of the main object are placed first, with smaller objects placed later. Also, if object A is partially or completely placed above object B, A should be placed after B, and object B needs to be added to the output of object A.

@@ -1,5 +1,7 @@
 """
 Detection and Segmentation of Objects in an Image using Grounded-SAM-2 and GPT
+对应论文阶段 (1) Instance Extraction: Identification - Segmentation
+功能：利用 Grounding DINO 进行开放词汇物体检测，SAM-2 进行实例分割，并结合 GPT-4 进行遮挡关系分析。
 """
 import os
 import cv2
