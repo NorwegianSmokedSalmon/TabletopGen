@@ -46,6 +46,11 @@ def load_config(config_path: Path | str | None = None):
         "hunyuan_secret_key": "HY_SECRET_KEY",
         "gpt_api_key": "GPT_API_KEY",
     }
+    
+    # Optional: doubao_text for text model (if different from doubao)
+    optional = {
+        "doubao_text": "DOUBAO_TEXT_API_KEY",
+    }
 
     values = {}
     for key, env_name in required.items():
@@ -53,6 +58,16 @@ def load_config(config_path: Path | str | None = None):
         if val is None or str(val).strip() == "":
             raise ValueError(f"Missing or empty configuration: api_keys.{key} ({env_name})")
         values[env_name] = str(val).strip()
+    
+    # Load optional keys
+    for key, env_name in optional.items():
+        val = api_cfg.get(key)
+        if val and str(val).strip():
+            values[env_name] = str(val).strip()
+        else:
+            # If doubao_text not provided, use doubao as fallback
+            if key == "doubao_text":
+                values[env_name] = values.get("DOUBAO_API_KEY", "")
 
     base_url = api_cfg.get("base_url")
     if base_url is None or str(base_url).strip() == "":
@@ -93,6 +108,7 @@ CONFIG_VALUES, _RAW_CONFIG = load_config()
 HY_SECRET_ID = CONFIG_VALUES["HY_SECRET_ID"]
 HY_SECRET_KEY = CONFIG_VALUES["HY_SECRET_KEY"]
 DOUBAO_API_KEY = CONFIG_VALUES["DOUBAO_API_KEY"]
+DOUBAO_TEXT_API_KEY = CONFIG_VALUES.get("DOUBAO_TEXT_API_KEY", DOUBAO_API_KEY)  # Use doubao_text if available, otherwise fallback to doubao
 GPT_API_KEY = CONFIG_VALUES["GPT_API_KEY"]
 BASE_URL = CONFIG_VALUES["BASE_URL"]
 PROXY_URL = os.environ.get("HTTP_PROXY")  # If no proxy is configured, this will be None
@@ -339,7 +355,16 @@ def step5_rotation_estimation(scene_dir):
     try:
         from modules.vlm_scene_view_angle import scene_angle_and_sized_mesh
         from modules.merge_images import merge_images
+        from modules.render_glb_image import setup_pyrender_offscreen
         import subprocess
+        
+        # Set up the pyrender environment
+        try:
+            backend = setup_pyrender_offscreen()
+            logger.info(f"backend: {backend}")
+        except RuntimeError as e:
+            logger.error(f"Unable to set up the pyrender environment: {e}")
+            raise
         
         scene_image_path = os.path.join(get_comfy_image_dir(scene_dir), "scene_image.png")
         output_assets_dir = get_output_assets_dir(scene_dir)
@@ -361,7 +386,7 @@ def step5_rotation_estimation(scene_dir):
                 "python", rotation_script_path, 
                 output_assets_dir,
                 GPT_API_KEY,
-                PROXY_URL,
+                PROXY_URL or "",  # Convert None to empty string
                 BASE_URL
             ]
             
@@ -388,7 +413,11 @@ def step5_rotation_estimation(scene_dir):
 
             # 5.3 Merge images
             logger.info("5.3 Merging rotation images...")
-            merge_images(os.path.join(output_assets_dir, "layout_rotation_images"))
+            rotation_images_dir = os.path.join(output_assets_dir, "layout_rotation_images")
+            if os.path.exists(rotation_images_dir):
+                merge_images(rotation_images_dir)
+            else:
+                logger.warning(f"Rotation images directory not found: {rotation_images_dir}, skipping merge step")
             
             logger.info("Step 5 completed: Rotation estimation finished")
             return True
@@ -436,7 +465,7 @@ def step6_position_estimation(scene_dir):
 
             # 6.2 Analyze top view bounding box
             logger.info("6.2 Analyzing top view bounding box...")
-            success_6_2 = topview_bbox_enhanced_main(output_assets_dir, comfy_image_dir, DOUBAO_API_KEY, GPT_API_KEY, PROXY_URL, BASE_URL)
+            success_6_2 = topview_bbox_enhanced_main(output_assets_dir, comfy_image_dir, DOUBAO_TEXT_API_KEY, GPT_API_KEY, PROXY_URL, BASE_URL)
             if not success_6_2:
                 logger.error("6.2 Analyzing top view bounding box failed")
                 return False
@@ -554,28 +583,59 @@ def list_existing_scenes():
     
     return scenes
 
-def run_full_pipeline(input_image_path, skip_step = [], scene_id=None):
+def run_full_pipeline(input_image_path=None, skip_step = [], scene_id=None, scene_dir=None, start_step=1):
     """
     Run the full 3D scene generation pipeline
     
     Args:
-        input_image_path: Input image path
+        input_image_path: Input image path (required if scene_dir is None)
         scene_id: Scene ID, if None, it will be automatically assigned
-        use_api: Whether to use the API version (default True), False to use the local version
+        scene_dir: Existing scene directory to resume from (optional)
+        start_step: Step number to start from (1-7, default 1)
+        skip_step: List of step numbers to skip
     """
-    # Check if input image exists
-    if not os.path.exists(input_image_path):
-        logger.error(f"Input image does not exist: {input_image_path}")
-        return False
-    
-    # Automatically assign scene_id
-    if scene_id is None:
-        scene_id = get_next_scene_id()
-    
-    logger.info(f"Starting full pipeline - Scene ID: {scene_id}")
+    # If scene_dir is provided, use it directly (resume mode)
+    if scene_dir is not None:
+        if not os.path.exists(scene_dir):
+            logger.error(f"Scene directory does not exist: {scene_dir}")
+            return False
+        
+        # Extract scene_id from scene_dir if not provided
+        if scene_id is None:
+            dir_name = os.path.basename(scene_dir)
+            if dir_name.startswith("scene_"):
+                try:
+                    scene_id = int(dir_name.split("_")[1])
+                    logger.info(f"Extracted scene_id from directory name: {scene_id}")
+                except (ValueError, IndexError):
+                    logger.warning(f"Cannot extract scene_id from directory name: {dir_name}, using default value 0")
+                    scene_id = 0
+            else:
+                # Directory name doesn't follow scene_X pattern, use default or directory name
+                logger.warning(f"Directory name '{dir_name}' doesn't follow 'scene_X' pattern, using default scene_id = 0")
+                scene_id = 0
+        
+        logger.info(f"Resuming pipeline from existing directory - Scene ID: {scene_id}, Start Step: {start_step}")
+        logger.info(f"Scene directory: {scene_dir}")
+    else:
+        # Normal mode: need input_image_path
+        if input_image_path is None:
+            logger.error("input_image_path is required when scene_dir is not provided")
+            return False
+            
+        # Check if input image exists
+        if not os.path.exists(input_image_path):
+            logger.error(f"Input image does not exist: {input_image_path}")
+            return False
+        
+        # Automatically assign scene_id
+        if scene_id is None:
+            scene_id = get_next_scene_id()
+        
+        logger.info(f"Starting full pipeline - Scene ID: {scene_id}")
 
-    # Set scene directory
-    scene_dir = setup_scene_directories(scene_id, input_image_path)
+        # Set scene directory
+        scene_dir = setup_scene_directories(scene_id, input_image_path)
     
 
     steps = [
@@ -592,7 +652,14 @@ def run_full_pipeline(input_image_path, skip_step = [], scene_id=None):
     total_steps = len(steps)
     for i, (step_name, step_func) in enumerate(steps, 1):
 
-        if i in skip_step: continue
+        # Skip steps before start_step
+        if i < start_step:
+            logger.info(f"Skipping step {i}/{total_steps}: {step_name} (start_step={start_step})")
+            continue
+
+        if i in skip_step: 
+            logger.info(f"Skipping step {i}/{total_steps}: {step_name} (in skip_step list)")
+            continue
 
         logger.info(f"\n{'='*60}")
         logger.info(f"Executing step {i}/{total_steps}: {step_name}")
@@ -633,33 +700,69 @@ def main():
     Main function
     """
     parser = argparse.ArgumentParser(description="TabletopGen Pipeline")
-    parser.add_argument("--input_image", type=str, required=True, help="Path to the input image")
+    parser.add_argument("--input_image", type=str, default=None, help="Path to the input image (required for new pipeline run)")
     parser.add_argument("--scene_id", type=int, default=None, help="Optional Scene ID")
     parser.add_argument("--skip_step", type=int, nargs='*', default=[], help="Steps to skip (space separated integers)")
+    parser.add_argument("--data_dir", type=str, default=None, help="Existing scene directory name (e.g., 'scene_1') to resume from")
+    parser.add_argument("--start_step", type=int, default=1, help="Step number to start from (1-7, default 1)")
     
     args = parser.parse_args()
 
     logger.info(f"Pipeline directory: {PIPELINE_DIR}")
     logger.info(f"Output scene directory: {get_output_scene_dir()}")
     
-    # List existing scenes
-    existing_scenes = list_existing_scenes()
+    # Validate arguments
+    if args.data_dir is None and args.input_image is None:
+        logger.error("Error: Either --input_image or --data_dir must be provided")
+        parser.print_help()
+        sys.exit(1)
     
-    # Get the next scene ID
-    next_scene_id = get_next_scene_id()
-    logger.info(f"Next scene will use ID: {next_scene_id}")
+    if args.data_dir is not None and args.input_image is not None:
+        logger.warning("Warning: Both --data_dir and --input_image provided. Using --data_dir (resume mode)")
     
-    # Input image path
-    input_image_path = args.input_image
+    # Validate start_step
+    if args.start_step < 1 or args.start_step > 7:
+        logger.error(f"Error: --start_step must be between 1 and 7, got {args.start_step}")
+        sys.exit(1)
     
+    # Determine scene_dir and input_image_path
+    scene_dir = None
+    input_image_path = None
     
-    logger.info(f"Input image path: {input_image_path}")
+    if args.data_dir is not None:
+        # Resume mode: use existing scene directory
+        output_scene_dir = get_output_scene_dir()
+        scene_dir = os.path.join(output_scene_dir, args.data_dir)
+        
+        if not os.path.exists(scene_dir):
+            logger.error(f"Error: Scene directory does not exist: {scene_dir}")
+            sys.exit(1)
+        
+        logger.info(f"Resume mode: Using existing scene directory: {scene_dir}")
+        logger.info(f"Starting from step: {args.start_step}")
+    else:
+        # Normal mode: start from scratch with input image
+        input_image_path = args.input_image
+        
+        if not os.path.exists(input_image_path):
+            logger.error(f"Error: Input image does not exist: {input_image_path}")
+            sys.exit(1)
+        
+        # List existing scenes
+        existing_scenes = list_existing_scenes()
+        
+        # Get the next scene ID
+        next_scene_id = get_next_scene_id()
+        logger.info(f"Next scene will use ID: {next_scene_id}")
+        logger.info(f"Input image path: {input_image_path}")
     
     # Run full pipeline
     success = run_full_pipeline(
-        input_image_path, 
+        input_image_path=input_image_path,
         skip_step=args.skip_step,
         scene_id=args.scene_id,
+        scene_dir=scene_dir,
+        start_step=args.start_step,
     )
     
     if success:
