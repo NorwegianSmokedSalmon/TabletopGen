@@ -48,7 +48,8 @@ Please only answer "YES" or "NO". "YES" means all criteria are met, "NO" means o
 
         response = openai_client.chat.completions.create(
             model="openai/gpt-4.1",
-            messages=input_messages,
+            messages=input_messages
+            # max_tokens=2048  # Jack Wang: max token
         )
         
         result = response.choices[0].message.content.strip().upper()
