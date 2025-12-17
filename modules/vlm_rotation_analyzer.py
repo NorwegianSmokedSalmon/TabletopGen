@@ -68,9 +68,9 @@ The object description list is:
             model="openai/gpt-5",
             messages=input_messages,
             temperature=1.0,
+            max_tokens=3000,  # Jack Wang: max token
             top_p=1.0,
-            store=True,
-            max_tokens=2048
+            store=True
         )
         content = response.choices[0].message.content.strip()
         

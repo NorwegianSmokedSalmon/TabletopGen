@@ -112,6 +112,7 @@ Example: {{"pen_1": "blue ballpoint pen on the left side", "pen_2": "red pen in 
         response = client.chat.completions.create(
             model="google/gemini-2.5-pro",
             messages=input_messages
+            # max_tokens=3000  # Jack Wang: removed token limit after recharge
         )
         content = response.choices[0].message.content.strip()
 
@@ -250,7 +251,8 @@ Example: [{{"category": "pen", "bbox": "<bbox>150 200 350 400</bbox>"}}, {{"cate
                         "type": "text",
                         "text": prompt
                     }]
-                }]
+                }],
+                max_tokens=3000  # Jack Wang: max token
             )
             
             response_text = response.choices[0].message.content

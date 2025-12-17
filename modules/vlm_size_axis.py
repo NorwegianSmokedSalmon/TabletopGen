@@ -95,6 +95,7 @@ The **object list** in the figure is: {object_names}"""
         response = client.chat.completions.create(
             model="google/gemini-2.5-pro",
             messages=input_messages
+            # max_tokens=2500  # Jack Wang: removed token limit after recharge
         )
         response_text = response.choices[0].message.content.strip()
         

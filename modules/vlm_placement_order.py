@@ -81,7 +81,8 @@ The object list is as follows:
         ]
         response = client.chat.completions.create(
             model="openai/gpt-5",
-            messages=input_messages
+            messages=input_messages,
+            max_tokens=3000  # Jack Wang: max token
         )
         content = response.choices[0].message.content.strip()
 

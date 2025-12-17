@@ -59,6 +59,7 @@ Finally, on a separate line, only output the final degree (in int format, e.g.: 
         response = client.chat.completions.create(
             model="openai/gpt-4.1",
             messages=input_messages
+            # max_tokens=2048  # Jack Wang: max token
         )
         content = response.choices[0].message.content.strip()
         
