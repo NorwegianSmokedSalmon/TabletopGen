@@ -110,6 +110,7 @@ Notes:
             model="openai/gpt-4.1",
             messages=messages,
             response_format={"type": "json_object"}
+            # max_tokens=2048  # Jack Wang： max token
         )
 
         content = response.choices[0].message.content
@@ -779,6 +780,7 @@ Notes:
             model="openai/gpt-4.1",
             messages=[{"role": "user", "content": content}],
             response_format={"type": "json_object"}
+            # max_tokens=2048  # Jack Wang： max token
         )
         
         result = json.loads(response.choices[0].message.content)
