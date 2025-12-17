@@ -18,6 +18,11 @@ def main():
         print(f"Error: output_assets_dir does not exist: {output_assets_dir}")
         sys.exit(1)
     
+    # Add the modules directory to Python path
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    
     try:
         from layout_rotation_estimate import layout_rotation_estimate_main
         
