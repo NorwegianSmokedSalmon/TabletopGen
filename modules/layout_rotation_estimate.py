@@ -13,8 +13,8 @@ from estimate_rotation_single_obj import estimate_theta
 from render_glb_image import setup_pyrender_offscreen
 import torch
 
-GPU_ID = 0
-os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
+# GPU_ID = 0
+# os.environ['CUDA_VISIBLE_DEVICES'] = str(GPU_ID)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -205,7 +205,11 @@ def process_layout_rotation_estimation(segmentation_results_path, view_angle_fil
         # Step 1.5: Pre-load DINO model
         logger.info("Step 1.5: Pre-loading DINO model (once for all objects)...")
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        logger.info(f"Using device: {device} (GPU ID: {GPU_ID})")
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0) if torch.cuda.device_count() > 0 else "Unknown"
+            logger.info(f"Using device: {device} (GPU: {gpu_name}, CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', 'Not set')})")
+        else:
+            logger.warning(f"Using device: {device} (CPU mode - this will be very slow!)")
         dino_model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14').to(device).eval()
         logger.info("✓ DINO model loaded successfully")
 
@@ -379,6 +383,9 @@ def layout_rotation_estimate_main(output_assets_dir, api_key, proxy_url, base_ur
         
     except Exception as e:
         logger.error(f"Main function execution failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise  # Re-raise the exception so run_rotation_estimation.py can catch it
 
 if __name__ == '__main__':
     try:
