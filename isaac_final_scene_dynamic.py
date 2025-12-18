@@ -107,11 +107,12 @@ def set_position(prim_path, position):
     new_position = Gf.Vec3d(position[0], position[1], position[2])
     obj.set_world_pose(position=new_position, orientation=current_orientation)
 
-def toggle_physics_for_objects(stage, object_prims, enable_dynamic, include_table=True):
+def toggle_physics_for_objects(stage, object_prims, enable_dynamic, include_table=True, table_prim_path=None):
     """
     切换物体的物理状态：Kinematic <-> Dynamic
     enable_dynamic: True = 启用动力学（物体会掉落）, False = 运动学（固定）
     include_table: 是否包括桌子（桌子也会受物理影响）
+    table_prim_path: 桌子的 Prim 路径（动态传入，支持 Table_0, Table_1 等）
     """
     count = 0
     for prim_path in object_prims:
@@ -127,17 +128,16 @@ def toggle_physics_for_objects(stage, object_prims, enable_dynamic, include_tabl
                     rigid_body.GetKinematicEnabledAttr().Set(True)
                 count += 1
     
-    # 处理桌子
-    if include_table:
-        table_path = "/World/Table_0"
-        table_prim = stage.GetPrimAtPath(table_path)
+    # 处理桌子（动态识别）
+    if include_table and table_prim_path:
+        table_prim = stage.GetPrimAtPath(table_prim_path)
         if table_prim.IsValid():
             rigid_body = UsdPhysics.RigidBodyAPI(table_prim)
             if rigid_body:
                 if enable_dynamic:
                     rigid_body.GetKinematicEnabledAttr().Set(False)
                     count += 1
-                    print(f"[Physics] 桌子也启用了动力学（会倾倒或稳定）")
+                    print(f"[Physics] 桌子 ({table_prim_path}) 也启用了动力学（会倾倒或稳定）")
                 else:
                     rigid_body.GetKinematicEnabledAttr().Set(True)
                     count += 1
@@ -899,7 +899,16 @@ def isaac_main(output_assets_dir):
         input_thread.start()
         
         # 保存所有物体的初始状态（用于 reset）
-        table_prim_path = "/World/Table_0"
+        # 动态构造桌子路径（支持 table_0, table_1, table_2 等）
+        main_object_name = main_object  # 例如 "table_0" 或 "table_1"
+        import re
+        clean_name = re.sub(r'[^\w\s-]', '', main_object_name)
+        clean_name = re.sub(r'^#+', '', clean_name).strip()
+        normalized_table_name = normalize_asset_name(clean_name)
+        table_prim_path = f"/World/{normalized_table_name}"
+        
+        print(f"[System] 动态识别桌子：{main_object_name} → {table_prim_path}")
+        
         initial_rotation = [-90, 0, 0]  # 初始旋转：Y-up转Z-up
         current_rotation = list(initial_rotation)
         
@@ -948,7 +957,8 @@ def isaac_main(output_assets_dir):
                         print("[Reset] 正在恢复所有物体到初始状态...")
                         
                         # 先禁用物理（避免恢复时受力）
-                        toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=False, include_table=True)
+                        toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=False, 
+                                                   include_table=True, table_prim_path=table_prim_path)
                         
                         # 恢复所有物体的位置和旋转
                         for prim_path, state in initial_states.items():
@@ -963,18 +973,22 @@ def isaac_main(output_assets_dir):
                         print("[Reset] 物理已禁用，输入 'physics on' 重新启用")
                         
                     elif cmd.lower() == 'physics on':
-                        toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=True, include_table=True)
+                        toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=True, 
+                                                   include_table=True, table_prim_path=table_prim_path)
                     elif cmd.lower() == 'physics off':
-                        toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=False, include_table=True)
+                        toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=False, 
+                                                   include_table=True, table_prim_path=table_prim_path)
                     elif cmd.lower() == 'bbox on':
                         toggle_collision_visibility(stage, show_collision=True)
                     elif cmd.lower() == 'bbox off':
                         toggle_collision_visibility(stage, show_collision=False)
                     elif len(parts) == 2 and parts[0] == 'physics':
                         if parts[1] == 'on':
-                            toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=True, include_table=True)
+                            toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=True, 
+                                                       include_table=True, table_prim_path=table_prim_path)
                         elif parts[1] == 'off':
-                            toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=False, include_table=True)
+                            toggle_physics_for_objects(stage, added_object_prims, enable_dynamic=False, 
+                                                       include_table=True, table_prim_path=table_prim_path)
                         else:
                             print(f"未知物理命令: physics {parts[1]}，请使用 'physics on' 或 'physics off'")
                     elif len(parts) == 2 and parts[0] == 'bbox':
@@ -1104,5 +1118,5 @@ def isaac_main(output_assets_dir):
         simulation_app.close()
 
 if __name__ == "__main__":
-    output_assets_dir = 'output_scene/scene_0/output_assets'
+    output_assets_dir = 'output_scene/scene_1/output_assets'
     isaac_main(output_assets_dir)

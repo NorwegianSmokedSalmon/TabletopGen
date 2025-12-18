@@ -217,6 +217,19 @@ def set_collision_approx_for_submeshes(stage, root_prim_path, mode="box"):
         print(f"[collider] invalid prim: {root_prim_path}")
         return
 
+    # Direct string fallback if token lookup fails
+    # Force use "convexHull" or "convexDecomposition" string if mode matches
+    approx_value = mode
+    if mode == "box": approx_value = "boundingCube"
+    if mode == "hull": approx_value = "convexHull" 
+    if mode == "vhacd": approx_value = "convexDecomposition"
+    
+    # Try to use Physics Tokens if available, but fallback to strings
+    if mode in APPROX_MAP:
+        approx_value = APPROX_MAP[mode]
+
+    print(f"[collider] Processing {root_prim_path} with mode='{mode}' (value='{approx_value}')")
+
     count = 0
     for prim in Usd.PrimRange(root):
         if prim.IsA(UsdGeom.Mesh):
