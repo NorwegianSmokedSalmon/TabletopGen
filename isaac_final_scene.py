@@ -584,5 +584,5 @@ def isaac_main(output_assets_dir):
         simulation_app.close()
 
 if __name__ == "__main__":
-    output_assets_dir = 'output_scene/scene_1/output_assets'
+    output_assets_dir = 'output_scene/scene_0/output_assets'
     isaac_main(output_assets_dir)
